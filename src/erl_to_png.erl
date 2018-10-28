@@ -2,5 +2,5 @@
 
 -export([render/0]).
 
-render() ->
+render(_) ->
     ok.
