@@ -5,22 +5,15 @@
 -export([render/1]).
 
 render(Filename) ->
-    Tuples = erl_to_tuples:write_tuples(Filename),
+    Tuples = erl_to_tuples:get_tuples(Filename),
     %{ok, Terms} = file:consult(Filename),
 
     Letters = render_tuples(Tuples),
-    MaxHeight = lists:max([H || {_, _, H, _} <- Letters]),
-    MaxTop = lists:max([T || {_, _, _, T} <- Letters]),
+    MaxHeight = max_height(Letters),
+    MaxTop = max_top(Letters),
     Lines = lines(Letters),
-    Fun = fun(Line) ->
-                  lists:reverse(
-                    scanlines(Line,
-                              MaxHeight,
-                              MaxTop))
-          end,
-    Scanlines0 = lists:flatten([Fun(Line) || Line <- Lines]),
-    [Longest | _] = lists:sort(fun(L1, L2) -> length(L1) < length(L2) end,
-                               Scanlines0),
+    Scanlines = scanlines(Letters),
+    Longest = longest_scanline(Scanlines),
     MaxLength = length(Longest),
     Scanlines = [pad_length(SL, MaxLength) || SL <- Scanlines0],
     Png = png(Scanlines),
@@ -52,6 +45,14 @@ lines([Letter = {Line, _, _} | Letters],
 lines([Letter | Letters], [Line | Lines]) ->
     lines(Letters, [[Letter | Line] | Lines]).
 
+scanlines(Lines, MaxH, MaxT) when is_list(Lines) ->
+    Scanlines = fun(Line) ->
+                        lists:reverse(
+                          scanlines(Line,
+                                    MaxH,
+                                    MaxT))
+                end,
+    lists:flatten([Scanlines(Line) || Line <- Lines]);
 scanlines(Line, Height, Top) ->
     Scanlines = [<<>> || _ <- lists:seq(1, Height)],
     scanlines(Line, Height, Top, Scanlines).
@@ -116,3 +117,16 @@ png(Scanlines) ->
                 data = <<>>,
                 pixels = Scanlines,
                 other = []}.
+
+max_height(Letters) ->
+    lists:max([H || {_, _, H, _} <- Letters]).
+
+max_top(Letters) ->
+    lists:max([T || {_, _, _, T} <- Letters]).
+
+longest_scanline(Lists) ->
+    SortFun = fun(L1, L2) ->
+                      length(L1) < length(L2)
+              end,
+    [Longest | _] = lists:sort(SortFun, Lists),
+    Longest.
