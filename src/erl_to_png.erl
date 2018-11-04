@@ -3,33 +3,57 @@
 -include("png.hrl").
 
 -export([render/1]).
+-export([render/2]).
 
 render(Filename) ->
-    Tuples = erl_to_tuples:get_tuples(Filename),
-    %{ok, Terms} = file:consult(Filename),
+    render(Filename, []).
 
+render(Filename, IncludePaths) ->
+    Tuples0 = erl_to_tuples:get_tuples(Filename, IncludePaths),
+    Tuples = lists:filter(fun filter_tuples/1, Tuples0),
     Letters = render_tuples(Tuples),
     MaxHeight = max_height(Letters),
     MaxTop = max_top(Letters),
     Lines = lines(Letters),
-    Scanlines = scanlines(Letters),
-    Longest = longest_scanline(Scanlines),
+    Scanlines0  = scanlines(Lines, MaxHeight, MaxTop),
+    Longest = longest_scanline(Scanlines0),
     MaxLength = length(Longest),
     Scanlines = [pad_length(SL, MaxLength) || SL <- Scanlines0],
     Png = png(Scanlines),
     erl_png:write_scanlines(Png, Filename ++ ".png").
+
+filter_tuples(Tuple = {_, <<>>, _}) ->
+    io:format("Filter out tuple with empty bin: ~p~n", [Tuple]),
+    false;
+filter_tuples(Tuple = {_, Bin, _}) when is_binary(Bin) and size(Bin) == 0 ->
+    io:format("Filter out tuple with size zero bin: ~p~n", [Tuple]),
+    false;
+filter_tuples(NotTuple) when not(is_tuple(NotTuple)) ->
+    io:format("Filter out non-tuple: ~p~n", [NotTuple]),
+    false;
+filter_tuples({_, NotBin, _}) when not(is_binary(NotBin)) ->
+    io:format("Filter out non-binary: ~p~n", [NotBin]),
+    false;
+filter_tuples(_) ->
+    true.
 
 render_tuples(Tuples) ->
     render_tuples([], Tuples).
 
 render_tuples(Letters, []) ->
     lists:reverse(Letters);
+render_tuples(Letters, [{_, <<>>, _} | Tuples]) ->
+    render_tuples(Letters, Tuples);
 render_tuples(Letters, [{Line, <<Char:1/binary, Bin/binary>>, Colour} | Tuples]) ->
-    Letter = render_char:render_char([Char]),
+    Letter = render_char:render_char(binary_to_list(Char)),
     render_tuples([Letter | Letters], [{Line, Bin, Colour} | Tuples]);
 render_tuples(Letters, [{Line, <<Char:1/binary>>, Colour} | Tuples]) ->
-    Letter = render_char:render_char([Char]),
-    render_tuples([{Line, Letter, Colour}| Letters], Tuples).
+    Letter = render_char:render_char(binary_to_list(Char)),
+    render_tuples([{Line, Letter, Colour}| Letters], Tuples);
+render_tuples(Letters, [BadTuple = {_, Bin, _} | Tuples]) ->
+    io:format("Skipping bad tuple: ~p with bin size ~p~n", [BadTuple, size(Bin)]),
+    render_tuples(Letters, Tuples).
+
 
 lines(Letters) ->
     lines(Letters, [[]]).
@@ -38,9 +62,13 @@ lines([], Lines) ->
     lists:reverse([lists:reverse(L) || L <- Lines]);
 lines([Letter | Letters], [[] | Lines]) ->
     lines(Letters, [[Letter] | Lines]);
+% Ignore line numbers that are out of order and lines
+% that are 'noline'
 lines([Letter = {Line, _, _} | Letters],
       Lines = [[{DiffLine, _, _} | Letters] | Lines])
-    when Line /= DiffLine ->
+    when is_integer(Line),
+         is_integer(DiffLine),
+         Line > DiffLine ->
     lines(Letters, [[Letter] | Lines]);
 lines([Letter | Letters], [Line | Lines]) ->
     lines(Letters, [[Letter | Line] | Lines]).
@@ -54,7 +82,7 @@ scanlines(Lines, MaxH, MaxT) when is_list(Lines) ->
                 end,
     lists:flatten([Scanlines(Line) || Line <- Lines]);
 scanlines(Line, Height, Top) ->
-    Scanlines = [<<>> || _ <- lists:seq(1, Height)],
+    Scanlines = << <<0>> || _ <- lists:seq(1, Height)>>,
     scanlines(Line, Height, Top, Scanlines).
 
 scanlines([], _, _, Scanlines) ->
