@@ -8,5 +8,7 @@ dep_erl_freetype = git https://github.com/cwmaguire/erl_freetype master
 dep_erl_png = git https://github.com/cwmaguire/erl_png master
 
 ERLC_OPTS = -I deps/erl_png/include/
+TEST_ERLC_OPTS = -I deps/erl_png/include/
+CT_OPTS = -include /Users/cmaguire/dev/erl_png/include
 
 include erlang.mk
