@@ -5,6 +5,17 @@
 -export([render/1]).
 -export([render/2]).
 
+% Test exports
+-export([filter_tuples/1]).
+-export([render_tuples/2]).
+-export([lines/2]).
+-export([scanlines/3]).
+-export([scanlines/4]).
+-export([pad_length/2]).
+-export([max_height/1]).
+-export([max_top/1]).
+-export([longest_scanline/1]).
+
 render(Filename) ->
     render(Filename, []).
 
