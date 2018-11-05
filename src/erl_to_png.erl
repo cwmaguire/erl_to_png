@@ -7,6 +7,7 @@
 
 % Test exports
 -export([filter_tuples/1]).
+-export([render_tuples/1]).
 -export([render_tuples/2]).
 -export([lines/2]).
 -export([scanlines/3]).
