@@ -9,6 +9,7 @@
 -export([filter_tuples/1]).
 -export([render_tuples/1]).
 -export([render_tuples/2]).
+-export([lines/1]).
 -export([lines/2]).
 -export([scanlines/3]).
 -export([scanlines/4]).
@@ -50,42 +51,48 @@ filter_tuples(_) ->
     true.
 
 render_tuples(Tuples) ->
-    render_tuples([], Tuples).
+    render_tuples(Tuples, []).
 
-render_tuples(Letters, []) ->
+render_tuples([], Letters) ->
     lists:reverse(Letters);
-render_tuples(Letters, [{_, <<>>, _} | Tuples]) ->
-    render_tuples(Letters, Tuples);
-render_tuples(Letters, [{Line, <<Char:1/binary, Bin/binary>>, Colour} | Tuples]) ->
+render_tuples([{_, <<>>, _} | Tuples], Letters) ->
+    render_tuples(Tuples, Letters);
+render_tuples([{Line, <<Char:1/binary, Bin/binary>>, Colour} | Tuples], Letters) ->
     Letter = render_char:render_char(binary_to_list(Char)),
-    render_tuples([{Line, Letter, Colour} | Letters],
-                  [{Line, Bin, Colour} | Tuples]);
-render_tuples(Letters, [{Line, <<Char:1/binary>>, Colour} | Tuples]) ->
+    render_tuples([{Line, Bin, Colour} | Tuples],
+                  [{Line, Letter, Colour} | Letters]);
+render_tuples([{Line, <<Char:1/binary>>, Colour} | Tuples], Letters) ->
     Letter = render_char:render_char(binary_to_list(Char)),
-    render_tuples([{Line, Letter, Colour}| Letters],
-                  Tuples);
-render_tuples(Letters, [BadTuple = {_, Bin, _} | Tuples]) ->
+    render_tuples(Tuples,
+                  [{Line, Letter, Colour}| Letters]);
+render_tuples([BadTuple = {_, Bin, _} | Tuples], Letters) ->
     io:format("Skipping bad tuple: ~p with bin size ~p~n", [BadTuple, size(Bin)]),
-    render_tuples(Letters, Tuples).
+    render_tuples(Tuples, Letters).
 
 
-lines(Letters) ->
-    lines(Letters, [[]]).
+lines([]) ->
+    [];
+lines([{noline, X, Y} | Letters]) ->
+    lines(Letters, [[{0, X, Y}]]);
+lines([Letter | Letters]) ->
+    lines(Letters, [[Letter]]).
 
 lines([], Lines) ->
     lists:reverse([lists:reverse(L) || L <- Lines]);
-lines([Letter | Letters], [[] | Lines]) ->
-    lines(Letters, [[Letter] | Lines]);
 % Ignore line numbers that are out of order and lines
 % that are 'noline'
-lines([Letter = {Line, _, _} | Letters],
-      Lines = [[{DiffLine, _, _} | Letters] | Lines])
-    when is_integer(Line),
-         is_integer(DiffLine),
-         Line > DiffLine ->
+lines([Letter = {LineNo, _, _} | Letters],
+      Lines = [[{HigherLineNo, _, _} | _] | _])
+    when is_integer(LineNo),
+         is_integer(HigherLineNo),
+         LineNo > HigherLineNo ->
     lines(Letters, [[Letter] | Lines]);
-lines([Letter | Letters], [Line | Lines]) ->
-    lines(Letters, [[Letter | Line] | Lines]).
+% Replace the out-of-place line number with the current
+% line number since it isn't an int and greater than the
+% current line number
+lines([{_, X, Y} | Letters],
+      [Line = [{LineNo, _, _} | _] | Lines]) ->
+    lines(Letters, [[{LineNo, X, Y} | Line] | Lines]).
 
 scanlines(Lines, MaxH, MaxT) when is_list(Lines) ->
     Scanlines = fun(Line) ->
@@ -161,10 +168,10 @@ png(Scanlines) ->
                 other = []}.
 
 max_height(Letters) ->
-    lists:max([H || {_, _, H, _} <- Letters]).
+    lists:max([H || {_, {_, _, H, _}, _} <- Letters]).
 
 max_top(Letters) ->
-    lists:max([T || {_, _, _, T} <- Letters]).
+    lists:max([T || {_, {_, _, _, T}, _} <- Letters]).
 
 longest_scanline(Lists) ->
     SortFun = fun(L1, L2) ->
