@@ -31,13 +31,20 @@ test_filter_tuples(_Config) ->
 
 test_render_tuples(_Config) ->
     [] = erl_to_png:render_tuples([{undefined, <<>>, undefined}]),
-    [{1, Bin1, colour_1}] = erl_to_png:render_tuples([{1, <<"a">>, colour_1}]),
+    [{1, R1 = {Bin1, W, H, Top}, colour_1}] =
+        erl_to_png:render_tuples([{1, <<"a">>, colour_1}]),
     true = is_binary(Bin1),
+    true = is_integer(W),
+    true = is_integer(H),
+    true = is_integer(Top),
     [T1, T2] = erl_to_png:render_tuples([{1, <<"a">>, colour_1},
                                          {2, <<"b">>, colour_2}]),
-    {1, Bin1, colour_1} = T1,
-    {2, Bin2, colour_2} = T2,
+    {1, R1, colour_1} = T1,
+    {2, {Bin2, W2, H2, Top2}, colour_2} = T2,
     true = is_binary(Bin2),
     Bin1 /= Bin2,
     100 < size(Bin1),
-    100 < size(Bin2).
+    100 < size(Bin2),
+    true = is_integer(W2),
+    true = is_integer(H2),
+    true = is_integer(Top2).

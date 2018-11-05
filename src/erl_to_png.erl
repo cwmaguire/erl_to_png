@@ -58,10 +58,12 @@ render_tuples(Letters, [{_, <<>>, _} | Tuples]) ->
     render_tuples(Letters, Tuples);
 render_tuples(Letters, [{Line, <<Char:1/binary, Bin/binary>>, Colour} | Tuples]) ->
     Letter = render_char:render_char(binary_to_list(Char)),
-    render_tuples([Letter | Letters], [{Line, Bin, Colour} | Tuples]);
+    render_tuples([{Line, Letter, Colour} | Letters],
+                  [{Line, Bin, Colour} | Tuples]);
 render_tuples(Letters, [{Line, <<Char:1/binary>>, Colour} | Tuples]) ->
     Letter = render_char:render_char(binary_to_list(Char)),
-    render_tuples([{Line, Letter, Colour}| Letters], Tuples);
+    render_tuples([{Line, Letter, Colour}| Letters],
+                  Tuples);
 render_tuples(Letters, [BadTuple = {_, Bin, _} | Tuples]) ->
     io:format("Skipping bad tuple: ~p with bin size ~p~n", [BadTuple, size(Bin)]),
     render_tuples(Letters, Tuples).
