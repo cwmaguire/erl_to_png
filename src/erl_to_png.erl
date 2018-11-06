@@ -12,11 +12,11 @@
 -export([lines/1]).
 -export([lines/2]).
 -export([scanlines/3]).
--export([scanlines/4]).
 -export([pad_length/2]).
 -export([max_height/1]).
 -export([max_top/1]).
 -export([longest_scanline/1]).
+-export([combine_scanlines/1]).
 
 render(Filename) ->
     render(Filename, []).
@@ -27,8 +27,9 @@ render(Filename, IncludePaths) ->
     Letters = render_tuples(Tuples),
     MaxHeight = max_height(Letters),
     MaxTop = max_top(Letters),
+    MaxBottom = MaxHeight - MaxTop,
     Lines = lines(Letters),
-    Scanlines0  = scanlines(Lines, MaxHeight, MaxTop),
+    Scanlines0  = scanlines(Lines, MaxTop, MaxBottom),
     Longest = longest_scanline(Scanlines0),
     MaxLength = length(Longest),
     Scanlines = [pad_length(SL, MaxLength) || SL <- Scanlines0],
@@ -94,61 +95,79 @@ lines([{_, X, Y} | Letters],
       [Line = [{LineNo, _, _} | _] | Lines]) ->
     lines(Letters, [[{LineNo, X, Y} | Line] | Lines]).
 
-scanlines(Lines, MaxH, MaxT) when is_list(Lines) ->
-    Scanlines = fun(Line) ->
-                        lists:reverse(
-                          scanlines(Line,
-                                    MaxH,
-                                    MaxT))
-                end,
-    lists:flatten([Scanlines(Line) || Line <- Lines]);
-scanlines(Line, Height, Top) ->
-    Scanlines = << <<0>> || _ <- lists:seq(1, Height)>>,
-    scanlines(Line, Height, Top, Scanlines).
+scanlines(Lines0, MaxT, MaxB) ->
+    % for each line
+    %    for each letter
+    %        generate scanlines
+    %    combine letters
+    % find max width
+    % compact all lines into single binaries
+    % DONE - these get passed to erl_png
+    Lines = lists:flatten(lines_to_scanlines(Lines0, MaxT, MaxB)),
+    MaxLength = lists:max(lists:map(fun length/1, Lines)),
+    % increase all shorter lines
+    _EqualLines = [pad_length(L, MaxLength) || L <- Lines].
 
-scanlines([], _, _, Scanlines) ->
-    Scanlines;
-scanlines([Letter | Line], MaxH, MaxT, Scanlines0) ->
-    Scanlines = scanlines(Letter, MaxH, MaxT, Scanlines0, 1),
-    scanlines(Line, MaxH, MaxT, Scanlines).
+lines_to_scanlines(Lines, MaxT, MaxB) ->
+    lines_to_scanlines(Lines, MaxT, MaxB, []).
 
-% We have MaxHeight (i.e. all) scanlines
-scanlines(_, MaxH, _, Scanlines, LineNo) when MaxH == LineNo ->
-    Scanlines;
-% We have all the scanlines
-scanlines({_, _, H, _}, MaxH, _, Scanlines, _)
-    when H == MaxH ->
-    Scanlines;
-% This top is lower than the max top, so we'll pad the top with a blank
-% line
-scanlines(Letter = {_, W, _, T}, MaxH, MaxT, Scanlines, LineNo)
-    when T < MaxT ->
-    BlankLine = list_to_binary([0 || _ <- lists:seq(1, W)]),
-    scanlines(Letter, MaxH, MaxT, [BlankLine | Scanlines], LineNo + 1);
-% The area below the baseline needs to be padded
-scanlines(Letter = {_, W, H, T}, MaxH, MaxT, Scanlines, LineNo)
-    when (MaxT - T) + H < LineNo ->
-    BlankLine = list_to_binary([0 || _ <- lists:seq(1, W)]),
-    scanlines(Letter, MaxH, MaxT, [BlankLine | Scanlines], LineNo + 1);
-% We're between Top and (Height - Top), which means there's data
-scanlines(Letter = {Bin, W, _, T}, MaxH, MaxT, Scanlines, LineNo) ->
-    TopPadding = MaxT - T,
-    Line = LineNo - TopPadding,
-    case Line of
-        0 ->
-            <<Scanline:W/binary, _/binary>> = Bin;
-        X ->
-            Skip = X * W,
-            <<_:Skip/binary, Scanline:W/binary, _/binary>> = Bin
-    end,
-    scanlines(Letter, MaxH, MaxT, [Scanline | Scanlines], LineNo + 1).
+lines_to_scanlines([], _, _, Scanlines) ->
+    lists:reverse(Scanlines);
+lines_to_scanlines([Line | Lines], MaxT, MaxB, Scanlines) ->
+    Letters = letters_to_scanlines(Line, MaxT, MaxB),
+    Scanline = combine_scanlines(Letters),
+    lines_to_scanlines(Lines, MaxT, MaxB, [Scanline | Scanlines]).
 
-pad_length(Scanline, MaxLine) when size(Scanline) < MaxLine ->
-    PaddingLength = MaxLine - size(Scanline),
-    Padding = list_to_binary([0 || _ <- lists:seq(1, PaddingLength)]),
-    <<Scanline/binary, Padding/binary>>;
-pad_length(Scanline, MaxLine) ->
-    <<Scanline:MaxLine/binary>>.
+letters_to_scanlines(Letters, MaxT, MaxB) ->
+    letters_to_scanlines(Letters, MaxT, MaxB, []).
+
+% {Line, {Bin, W, H, T}, Colour}
+letters_to_scanlines([Letter | Letters], MaxT, MaxB, Scanlines) ->
+    {_, {Bin, W, H, T}, Colour} = Letter,
+    Scanlines0 = letter_to_scanlines(Bin, W),
+    Pixels = pixels(Scanlines0, Colour),
+    BlankLine = blank_pixels(W),
+    TopPadding = lists:duplicate(MaxT - T, BlankLine),
+    BottomPadding = lists:duplicate(MaxB - (H - T), BlankLine),
+    LetterScanlines = TopPadding ++ Pixels ++ BottomPadding,
+    letters_to_scanlines(Letters, MaxT, MaxB, [LetterScanlines | Scanlines]).
+
+pixels(Scanlines, RGB) when is_list(Scanlines) ->
+    [pixels(S, RGB) || S <- Scanlines];
+pixels(Scanline, {R, G, B}) when is_binary(Scanline) ->
+    Alphas = binary_to_list(Scanline),
+    [#px{r = R, g = G, b = B, a = A} || A <- Alphas].
+
+letter_to_scanlines(Bin, W) ->
+    letter_to_scanlines(Bin, W, []).
+
+%% Only handles binaries with sizes in multiples of W
+letter_to_scanlines(<<>>, _, Scanlines) ->
+    lists:reverse(Scanlines);
+letter_to_scanlines(Bin, W, Scanlines) ->
+    <<Line:W/binary, Rest/binary>> = Bin,
+    letter_to_scanlines(Rest, W, [Line | Scanlines]).
+
+combine_scanlines([]) ->
+    [];
+combine_scanlines([List | Lists]) ->
+    Zip = fun(Acc, L) ->
+              L ++ Acc
+          end,
+    Fold = fun(L1, L2) ->
+               lists:zipwith(Zip, L1, L2)
+           end,
+    lists:foldl(Fold, List, Lists).
+
+pad_length(Scanline, Length) when length(Scanline) < Length ->
+    PaddingLength = Length - length(Scanline),
+    Scanline ++ blank_pixels(PaddingLength);
+pad_length(Scanline, _) ->
+    Scanline.
+
+blank_pixels(N) ->
+    BlankPixel = #px{r = 0, g = 0, b = 0, a = 255},
+    lists:duplicate(N, BlankPixel).
 
 png(Scanlines) ->
     Header = #header{width = 400,
