@@ -17,6 +17,7 @@
 -export([max_top/1]).
 -export([longest_scanline/1]).
 -export([combine_scanlines/1]).
+-export([blank_pixels/1]).
 
 render(Filename) ->
     render(Filename, []).

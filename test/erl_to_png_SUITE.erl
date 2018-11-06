@@ -7,8 +7,11 @@
 -export([test_render_tuples/1]).
 -export([test_lines/1]).
 -export([test_combine_scanlines/1]).
+-export([test_blank_pixels/1]).
+-export([test_pad_length/1]).
 
 -include_lib("common_test/include/ct.hrl").
+-include("png.hrl").
 
 -define(E2P, erl_to_png).
 
@@ -24,7 +27,9 @@ all() ->
     [test_filter_tuples,
      test_render_tuples,
      test_lines,
-     test_combine_scanlines].
+     test_combine_scanlines,
+     test_blank_pixels,
+     test_pad_length].
 
 test_filter_tuples(_Config) ->
     Filter = fun ?E2P:filter_tuples/1,
@@ -92,3 +97,18 @@ test_combine_scanlines(_Config) ->
     Scanlines = [Scanline1, Scanline2],
 
     Scanlines = ?E2P:combine_scanlines(Letters).
+
+test_blank_pixels(_Config) ->
+    B = _BlankPixel = #px{r = 0, g = 0, b = 0, a = 255},
+    [] = ?E2P:blank_pixels(0),
+    [B] = ?E2P:blank_pixels(1),
+    [B, B] = ?E2P:blank_pixels(2).
+
+test_pad_length(_Config) ->
+    A = _Pixel = #px{r = 1, g = 2, b = 3, a = 255},
+    B = _BlankPixel = #px{r = 0, g = 0, b = 0, a = 255},
+    [] = ?E2P:pad_length([], 0),
+    [B, B] = ?E2P:pad_length([], 2),
+    [A, B] = ?E2P:pad_length([A], 2),
+    [A, B, B] = ?E2P:pad_length([A], 3),
+    [A] = ?E2P:pad_length([A], 1).
