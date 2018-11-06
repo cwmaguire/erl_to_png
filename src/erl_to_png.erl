@@ -18,6 +18,9 @@
 -export([longest_scanline/1]).
 -export([combine_scanlines/1]).
 -export([blank_pixels/1]).
+-export([letter_to_scanlines/2]).
+-export([letters_to_scanlines/3]).
+-export([pixels/2]).
 
 render(Filename) ->
     render(Filename, []).
@@ -120,8 +123,10 @@ lines_to_scanlines([Line | Lines], MaxT, MaxB, Scanlines) ->
     lines_to_scanlines(Lines, MaxT, MaxB, [Scanline | Scanlines]).
 
 letters_to_scanlines(Letters, MaxT, MaxB) ->
-    letters_to_scanlines(Letters, MaxT, MaxB, []).
+    lists:reverse(letters_to_scanlines(Letters, MaxT, MaxB, [])).
 
+letters_to_scanlines([], _, _, Scanlines) ->
+    Scanlines;
 % {Line, {Bin, W, H, T}, Colour}
 letters_to_scanlines([Letter | Letters], MaxT, MaxB, Scanlines) ->
     {_, {Bin, W, H, T}, Colour} = Letter,

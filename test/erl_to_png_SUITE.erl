@@ -9,6 +9,10 @@
 -export([test_combine_scanlines/1]).
 -export([test_blank_pixels/1]).
 -export([test_pad_length/1]).
+-export([test_letter_to_scanlines/1]).
+-export([test_pixels/1]).
+-export([test_letters_to_scanlines/1]).
+-export([test_lines_to_scanlines/1]).
 
 -include_lib("common_test/include/ct.hrl").
 -include("png.hrl").
@@ -29,7 +33,12 @@ all() ->
      test_lines,
      test_combine_scanlines,
      test_blank_pixels,
-     test_pad_length].
+     test_pad_length,
+     test_letter_to_scanlines,
+     test_pixels,
+     test_letters_to_scanlines,
+     test_line_to_scanlines,
+     test_lines_to_scanlines].
 
 test_filter_tuples(_Config) ->
     Filter = fun ?E2P:filter_tuples/1,
@@ -112,3 +121,56 @@ test_pad_length(_Config) ->
     [A, B] = ?E2P:pad_length([A], 2),
     [A, B, B] = ?E2P:pad_length([A], 3),
     [A] = ?E2P:pad_length([A], 1).
+
+
+test_letter_to_scanlines(_Config) ->
+    [<<0, 1>>, <<2, 3>>] = ?E2P:letter_to_scanlines(<<0, 1, 2, 3>>, 2).
+
+test_pixels(_Config) ->
+    Px1 = #px{r = 1, g = 2, b = 3, a = 4},
+    Px2 = Px1#px{a = 5},
+    [Px1, Px2] = ?E2P:pixels(<<4, 5>>, {1, 2, 3}).
+
+test_letters_to_scanlines(_Config) ->
+    U = undefined,
+    Bin1 = <<1, 2, 3, 4, 5, 6>>,
+    C1 = {1, 2, 3},
+    L1 = {U, {Bin1, 3, 2, 1}, C1},
+    Bin2 = <<7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18>>,
+    C2 = {4, 5, 6},
+    L2 = {U, {Bin2, 3, 4, 2}, C2},
+
+    Px0 = _BlankPixel = px(0, 0, 0, 255),
+    BlankLine = [Px0, Px0, Px0],
+    [Px1, Px2, Px3, Px4, Px5, Px6] = [px(C1, A) || A <- b2l(Bin1)],
+    Scanline1 = [BlankLine,
+                 [Px1, Px2, Px3],
+                 [Px4, Px5, Px6],
+                 BlankLine],
+    Pxs2 = [px(C2, A) || A <- b2l(Bin2)],
+    Pxs2_1 = lists:sublist(Pxs2, 1, 3),
+    Pxs2_2 = lists:sublist(Pxs2, 4, 3),
+    Pxs2_3 = lists:sublist(Pxs2, 7, 3),
+    Pxs2_4 = lists:sublist(Pxs2, 10, 3),
+    Scanline2 = [Pxs2_1,
+                 Pxs2_2,
+                 Pxs2_3,
+                 Pxs2_4],
+    Scanlines = [Scanline1, Scanline2],
+    Scanlines = ?E2P:letters_to_scanlines([L1, L2], 2, 2).
+
+
+test_lines_to_scanlines(_Config) ->
+    ct:fail("test incomplete").
+
+px({R, G, B}, A) ->
+    px(R, G, B, A).
+
+%px(R, G, B) ->
+    %px(R, G, B, 255).
+
+px(R, G, B, A) ->
+    #px{r = R, g = G, b = B, a = A}.
+
+b2l(Bin) ->
+    binary_to_list(Bin).
