@@ -13,6 +13,7 @@
 -export([test_pixels/1]).
 -export([test_letters_to_scanlines/1]).
 -export([test_lines_to_scanlines/1]).
+-export([test_scanlines/1]).
 
 -include_lib("common_test/include/ct.hrl").
 -include("png.hrl").
@@ -37,7 +38,8 @@ all() ->
      test_letter_to_scanlines,
      test_pixels,
      test_letters_to_scanlines,
-     test_lines_to_scanlines].
+     test_lines_to_scanlines,
+     test_scanlines].
 
 test_filter_tuples(_Config) ->
     Filter = fun ?E2P:filter_tuples/1,
@@ -176,6 +178,8 @@ test_lines_to_scanlines(_Config) ->
     C4 = {10, 11, 12},
     L4 = {U, {Bin4, 2, 3, 2}, C4},
 
+    Lines = [[L1, L2], [L3, L4]],
+
     Px0 = _BlankPixel = px(0, 0, 0, 255),
 
     [Px1_1, Px1_2, Px1_3,
@@ -192,17 +196,45 @@ test_lines_to_scanlines(_Config) ->
      Px4_3, Px4_4,
      Px4_5, Px4_6] = [px(C4, A) || A <- b2l(Bin4)],
 
+    [[Px0,   Px0,   Px0,   Px2_1,  Px2_2,  Px2_3],
+     [Px1_1, Px1_2, Px1_3, Px2_4,  Px2_5,  Px2_6],
+     [Px1_4, Px1_5, Px1_6, Px2_7,  Px2_8,  Px2_9],
+     [Px0,   Px0,   Px0,   Px2_10, Px2_11, Px2_12],
+     [Px0,   Px0,   Px4_1, Px4_2],
+     [Px3_1, Px3_2, Px4_3, Px4_4],
+     [Px0,   Px0,   Px4_5, Px4_6],
+     [Px0,   Px0,   Px0,   Px0]] =
+        ?E2P:lines_to_scanlines(Lines, 2, 2).
+
+test_scanlines(_Config) ->
+    U = undefined,
+    Bin1 = <<1, 2, 3, 4, 5, 6>>,
+    C1 = {1, 2, 3},
+    L1 = {U, {Bin1, 3, 2, 1}, C1},
+
+    Bin2 = <<7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18>>,
+    C2 = {4, 5, 6},
+    L2 = {U, {Bin2, 3, 4, 2}, C2},
+
+    Bin3 = <<19, 20>>,
+    C3 = {7, 8, 8},
+    L3 = {U, {Bin3, 2, 1, 1}, C3},
+
+    Bin4 = <<22, 23, 24, 25, 26, 27>>,
+    C4 = {10, 11, 12},
+    L4 = {U, {Bin4, 2, 3, 2}, C4},
+
     Lines = [[L1, L2], [L3, L4]],
 
-    [[[Px0,   Px0,   Px0,   Px2_1,  Px2_2,  Px2_3],
-      [Px1_1, Px1_2, Px1_3, Px2_4,  Px2_5,  Px2_6],
-      [Px1_4, Px1_5, Px1_6, Px2_7,  Px2_8,  Px2_9],
-      [Px0,   Px0,   Px0,   Px2_10, Px2_11, Px2_12]],
-     [[Px0,   Px0,   Px4_1, Px4_2],
-      [Px3_1, Px3_2, Px4_3, Px4_4],
-      [Px0,   Px0,   Px4_5, Px4_6],
-      [Px0,   Px0,   Px0,   Px0]]] =
-        ?E2P:lines_to_scanlines(Lines, 2, 2).
+    [[Px0,   Px0,   Px0,   Px2_1,  Px2_2,  Px2_3],
+     [Px1_1, Px1_2, Px1_3, Px2_4,  Px2_5,  Px2_6],
+     [Px1_4, Px1_5, Px1_6, Px2_7,  Px2_8,  Px2_9],
+     [Px0,   Px0,   Px0,   Px2_10, Px2_11, Px2_12],
+     [Px0,   Px0,   Px4_1, Px4_2,  Px0,    Px0],
+     [Px3_1, Px3_2, Px4_3, Px4_4,  Px0,    Px0],
+     [Px0,   Px0,   Px4_5, Px4_6,  Px0,    Px0],
+     [Px0,   Px0,   Px0,   Px0,    Px0,    Px0]] =
+        ?E2P:scanlines(Lines, 2, 2).
 
 px({R, G, B}, A) ->
     px(R, G, B, A).

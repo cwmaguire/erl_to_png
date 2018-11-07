@@ -101,34 +101,33 @@ lines([{_, X, Y} | Letters],
     lines(Letters, [[{LineNo, X, Y} | Line] | Lines]).
 
 scanlines(Lines0, MaxT, MaxB) ->
-    % for each line
-    %    for each letter
-    %        generate scanlines
-    %    combine letters
-    % find max width
-    % compact all lines into single binaries
-    % DONE - these get passed to erl_png
-    Lines = lists:flatten(lines_to_scanlines(Lines0, MaxT, MaxB)),
-    MaxLength = lists:max(lists:map(fun length/1, Lines)),
-    % increase all shorter lines
+    Lines = lines_to_scanlines(Lines0, MaxT, MaxB),
+    MaxLength = lists:max([length(L) || L <- Lines]),
     _EqualLines = [pad_length(L, MaxLength) || L <- Lines].
+
+max_length(CharLines) ->
+    MaxCharLineLengths = [max_line_length(CL) || CL <- CharLines],
+    lists:max(MaxCharLineLengths).
+
+max_line_length(CharLine) ->
+    lists:max([length(Scanline) || Scanline <- CharLine]).
 
 lines_to_scanlines(Lines, MaxT, MaxB) ->
     lines_to_scanlines(Lines, MaxT, MaxB, []).
 
 lines_to_scanlines([], _, _, Scanlines) ->
-    lists:reverse(Scanlines);
+    Scanlines;
 lines_to_scanlines([Line | Lines], MaxT, MaxB, Scanlines) ->
     Letters = letters_to_scanlines(Line, MaxT, MaxB),
-    Scanline = combine_scanlines(Letters),
-    lines_to_scanlines(Lines, MaxT, MaxB, [Scanline | Scanlines]).
+    LetterScanlines = combine_scanlines(Letters),
+    StackedScanlines = Scanlines ++ LetterScanlines,
+    lines_to_scanlines(Lines, MaxT, MaxB, StackedScanlines).
 
 letters_to_scanlines(Letters, MaxT, MaxB) ->
     lists:reverse(letters_to_scanlines(Letters, MaxT, MaxB, [])).
 
 letters_to_scanlines([], _, _, Scanlines) ->
     Scanlines;
-% {Line, {Bin, W, H, T}, Colour}
 letters_to_scanlines([Letter | Letters], MaxT, MaxB, Scanlines) ->
     {_, {Bin, W, H, T}, Colour} = Letter,
     Scanlines0 = letter_to_scanlines(Bin, W),
@@ -155,6 +154,7 @@ letter_to_scanlines(Bin, W, Scanlines) ->
     <<Line:W/binary, Rest/binary>> = Bin,
     letter_to_scanlines(Rest, W, [Line | Scanlines]).
 
+%% [[[A], [B]], [[C], [D]]] -> [[A ++ C],[B ++ D]]
 combine_scanlines([]) ->
     [];
 combine_scanlines([List | Lists]) ->
@@ -165,6 +165,7 @@ combine_scanlines([List | Lists]) ->
                lists:zipwith(Zip, L1, L2)
            end,
     lists:foldl(Fold, List, Lists).
+    %[lists:flatten(L) || L <- lists:foldl(Fold, List, Lists)].
 
 pad_length(Scanline, Length) when length(Scanline) < Length ->
     PaddingLength = Length - length(Scanline),
