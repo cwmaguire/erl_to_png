@@ -20,6 +20,7 @@
 -export([blank_pixels/1]).
 -export([letter_to_scanlines/2]).
 -export([letters_to_scanlines/3]).
+-export([lines_to_scanlines/3]).
 -export([pixels/2]).
 
 render(Filename) ->

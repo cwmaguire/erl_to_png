@@ -37,7 +37,6 @@ all() ->
      test_letter_to_scanlines,
      test_pixels,
      test_letters_to_scanlines,
-     test_line_to_scanlines,
      test_lines_to_scanlines].
 
 test_filter_tuples(_Config) ->
@@ -143,7 +142,7 @@ test_letters_to_scanlines(_Config) ->
     Px0 = _BlankPixel = px(0, 0, 0, 255),
     BlankLine = [Px0, Px0, Px0],
     [Px1, Px2, Px3, Px4, Px5, Px6] = [px(C1, A) || A <- b2l(Bin1)],
-    Scanline1 = [BlankLine,
+    Scanlines1 = [BlankLine,
                  [Px1, Px2, Px3],
                  [Px4, Px5, Px6],
                  BlankLine],
@@ -152,16 +151,58 @@ test_letters_to_scanlines(_Config) ->
     Pxs2_2 = lists:sublist(Pxs2, 4, 3),
     Pxs2_3 = lists:sublist(Pxs2, 7, 3),
     Pxs2_4 = lists:sublist(Pxs2, 10, 3),
-    Scanline2 = [Pxs2_1,
+    Scanlines2 = [Pxs2_1,
                  Pxs2_2,
                  Pxs2_3,
                  Pxs2_4],
-    Scanlines = [Scanline1, Scanline2],
-    Scanlines = ?E2P:letters_to_scanlines([L1, L2], 2, 2).
-
+    ScanlineList = [Scanlines1, Scanlines2],
+    ScanlineList = ?E2P:letters_to_scanlines([L1, L2], 2, 2).
 
 test_lines_to_scanlines(_Config) ->
-    ct:fail("test incomplete").
+    U = undefined,
+    Bin1 = <<1, 2, 3, 4, 5, 6>>,
+    C1 = {1, 2, 3},
+    L1 = {U, {Bin1, 3, 2, 1}, C1},
+
+    Bin2 = <<7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18>>,
+    C2 = {4, 5, 6},
+    L2 = {U, {Bin2, 3, 4, 2}, C2},
+
+    Bin3 = <<19, 20>>,
+    C3 = {7, 8, 8},
+    L3 = {U, {Bin3, 2, 1, 1}, C3},
+
+    Bin4 = <<22, 23, 24, 25, 26, 27>>,
+    C4 = {10, 11, 12},
+    L4 = {U, {Bin4, 2, 3, 2}, C4},
+
+    Px0 = _BlankPixel = px(0, 0, 0, 255),
+
+    [Px1_1, Px1_2, Px1_3,
+     Px1_4, Px1_5, Px1_6] = [px(C1, A) || A <- b2l(Bin1)],
+
+    [Px2_1,  Px2_2,  Px2_3,
+     Px2_4,  Px2_5,  Px2_6,
+     Px2_7,  Px2_8,  Px2_9,
+     Px2_10, Px2_11, Px2_12] = [px(C2, A) || A <- b2l(Bin2)],
+
+    [Px3_1, Px3_2] = [px(C3, A) || A <- b2l(Bin3)],
+
+    [Px4_1, Px4_2,
+     Px4_3, Px4_4,
+     Px4_5, Px4_6] = [px(C4, A) || A <- b2l(Bin4)],
+
+    Lines = [[L1, L2], [L3, L4]],
+
+    [[[Px0,   Px0,   Px0,   Px2_1,  Px2_2,  Px2_3],
+      [Px1_1, Px1_2, Px1_3, Px2_4,  Px2_5,  Px2_6],
+      [Px1_4, Px1_5, Px1_6, Px2_7,  Px2_8,  Px2_9],
+      [Px0,   Px0,   Px0,   Px2_10, Px2_11, Px2_12]],
+     [[Px0,   Px0,   Px4_1, Px4_2],
+      [Px3_1, Px3_2, Px4_3, Px4_4],
+      [Px0,   Px0,   Px4_5, Px4_6],
+      [Px0,   Px0,   Px0,   Px0]]] =
+        ?E2P:lines_to_scanlines(Lines, 2, 2).
 
 px({R, G, B}, A) ->
     px(R, G, B, A).
