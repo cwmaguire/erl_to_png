@@ -13,7 +13,7 @@
 -export([lines/2]).
 -export([scanlines/3]).
 -export([pad_length/2]).
--export([max_height/1]).
+%-export([max_height/1]).
 -export([max_top/1]).
 -export([longest_scanline/1]).
 -export([combine_scanlines/1]).
@@ -30,16 +30,20 @@ render(Filename, IncludePaths) ->
     Tuples0 = erl_to_tuples:get_tuples(Filename, IncludePaths),
     Tuples = lists:filter(fun filter_tuples/1, Tuples0),
     Letters = render_tuples(Tuples),
-    MaxHeight = max_height(Letters),
+    %MaxHeight = max_height(Letters),
     MaxTop = max_top(Letters),
-    MaxBottom = MaxHeight - MaxTop,
+    io:format(user, "MaxTop = ~p~n", [MaxTop]),
+    MaxBottom = max_bottom(Letters),
+    io:format(user, "MaxBottom = ~p~n", [MaxBottom]),
     Lines = lines(Letters),
+    io:format(user, "Lines ~p~n", [length(Lines)]),
     Scanlines0  = scanlines(Lines, MaxTop, MaxBottom),
+    io:format(user, "Scanlines0 ~p~n", [length(Scanlines0)]),
     Longest = longest_scanline(Scanlines0),
     MaxLength = length(Longest),
     Scanlines = [pad_length(SL, MaxLength) || SL <- Scanlines0],
     Png = png(Scanlines),
-    erl_png:write_scanlines(Png, Filename ++ ".png").
+    png:write_scanlines(Png, Filename ++ ".png").
 
 filter_tuples(Tuple = {_, <<>>, _}) ->
     io:format("Filter out tuple with empty bin: ~p~n", [Tuple]),
@@ -65,16 +69,59 @@ render_tuples([{_, <<>>, _} | Tuples], Letters) ->
     render_tuples(Tuples, Letters);
 render_tuples([{Line, <<Char:1/binary, Bin/binary>>, Colour} | Tuples], Letters) ->
     Letter = render_char:render_char(binary_to_list(Char)),
+    {Render, W, H, T, BinWidth} = Letter,
+    %io:format("Rendered ~p on line ~p with colour ~p."
+              %" Bin size: ~p, "
+              %"W: ~p, H: ~p, T: ~p, BW: ~p~n",
+              %[Char, Line, Colour, size(Render),
+               %W, H, T, BinWidth]),
+    Extract = extract_letter(Render, W, H, BinWidth),
+    io:format("Rendered ~p on line ~p with colour ~p."
+              " Bin size: ~p, Letter size: ~p, "
+              "W: ~p, H: ~p, T: ~p, BW: ~p~n",
+              [Char, Line, Colour, size(Render),
+               size(Extract), W, H, T, BinWidth]),
+    ExtractedLetter = {Extract, W, H, T},
     render_tuples([{Line, Bin, Colour} | Tuples],
-                  [{Line, Letter, Colour} | Letters]);
+                  [{Line, ExtractedLetter, Colour} | Letters]);
 render_tuples([{Line, <<Char:1/binary>>, Colour} | Tuples], Letters) ->
     Letter = render_char:render_char(binary_to_list(Char)),
+    {Render, W, H, T, BinWidth} = Letter,
+    %io:format("Rendered ~p on line ~p with colour ~p."
+              %" Bin size: ~p, "
+              %"W: ~p, H: ~p, T: ~p, BW: ~p~n",
+              %[Char, Line, Colour, size(Render),
+               %W, H, T, BinWidth]),
+    Extract = extract_letter(Render, W, H, BinWidth),
+    io:format("Rendered ~p on line ~p with colour ~p."
+              " Bin size: ~p, Letter size: ~p, "
+              "W: ~p, H: ~p, T: ~p, BW: ~p~n",
+              [Char, Line, Colour, size(Render),
+               size(Extract), W, H, T, BinWidth]),
+    ExtractedLetter = {Extract, W, H, T},
     render_tuples(Tuples,
-                  [{Line, Letter, Colour}| Letters]);
+                  [{Line, ExtractedLetter, Colour} | Letters]);
 render_tuples([BadTuple = {_, Bin, _} | Tuples], Letters) ->
     io:format("Skipping bad tuple: ~p with bin size ~p~n", [BadTuple, size(Bin)]),
     render_tuples(Tuples, Letters).
 
+extract_letter(Bin, LetterW, LetterH, BinW) ->
+    extract_letter(Bin, LetterW, LetterH, BinW, <<>>, 0).
+
+extract_letter(_, _, H, _, ExtractBin, H = _Count) ->
+    ExtractBin;
+extract_letter(Bin, LetterW, LetterH, BinW, ExtractBin, Count) ->
+    %io:format("Extracting ~p x ~p line #~p from ~p byte binary "
+              %"with width ~p~n",
+              %[LetterW, LetterH, Count + 1, size(Bin), BinW]),
+    <<ExtractLine:BinW/binary, Rest/binary>> = Bin,
+    <<LetterLine:LetterW/binary, _/binary>> = ExtractLine,
+    extract_letter(Rest,
+                   LetterW,
+                   LetterH,
+                   BinW,
+                   <<ExtractBin/binary, LetterLine/binary>>,
+                   Count + 1).
 
 lines([]) ->
     [];
@@ -102,15 +149,18 @@ lines([{_, X, Y} | Letters],
 
 scanlines(Lines0, MaxT, MaxB) ->
     Lines = lines_to_scanlines(Lines0, MaxT, MaxB),
+    io:format(user, "Scanlines size: ~p~n", [length(Lines)]),
+
     MaxLength = lists:max([length(L) || L <- Lines]),
+    io:format(user, "MaxLength = ~p~n", [MaxLength]),
     _EqualLines = [pad_length(L, MaxLength) || L <- Lines].
 
-max_length(CharLines) ->
-    MaxCharLineLengths = [max_line_length(CL) || CL <- CharLines],
-    lists:max(MaxCharLineLengths).
+%max_length(CharLines) ->
+    %MaxCharLineLengths = [max_line_length(CL) || CL <- CharLines],
+    %lists:max(MaxCharLineLengths).
 
-max_line_length(CharLine) ->
-    lists:max([length(Scanline) || Scanline <- CharLine]).
+%max_line_length(CharLine) ->
+    %lists:max([length(Scanline) || Scanline <- CharLine]).
 
 lines_to_scanlines(Lines, MaxT, MaxB) ->
     lines_to_scanlines(Lines, MaxT, MaxB, []).
@@ -119,6 +169,7 @@ lines_to_scanlines([], _, _, Scanlines) ->
     Scanlines;
 lines_to_scanlines([Line | Lines], MaxT, MaxB, Scanlines) ->
     Letters = letters_to_scanlines(Line, MaxT, MaxB),
+    io:format(user, "Letters size: ~p~n", [length(Letters)]),
     LetterScanlines = combine_scanlines(Letters),
     StackedScanlines = Scanlines ++ LetterScanlines,
     lines_to_scanlines(Lines, MaxT, MaxB, StackedScanlines).
@@ -150,9 +201,13 @@ letter_to_scanlines(Bin, W) ->
 %% Only handles binaries with sizes in multiples of W
 letter_to_scanlines(<<>>, _, Scanlines) ->
     lists:reverse(Scanlines);
-letter_to_scanlines(Bin, W, Scanlines) ->
+letter_to_scanlines(Bin, W, Scanlines) when size(Bin) >= W ->
     <<Line:W/binary, Rest/binary>> = Bin,
-    letter_to_scanlines(Rest, W, [Line | Scanlines]).
+    letter_to_scanlines(Rest, W, [Line | Scanlines]);
+letter_to_scanlines(Bin, W, Scanlines) ->
+    io:format("Remaining Bin is not long enough for width ~p:~n~p~n",
+              [W, Bin]),
+    lists:reverse(Scanlines).
 
 %% [[[A], [B]], [[C], [D]]] -> [[A ++ C],[B ++ D]]
 combine_scanlines([]) ->
@@ -194,11 +249,14 @@ png(Scanlines) ->
                 pixels = Scanlines,
                 other = []}.
 
-max_height(Letters) ->
-    lists:max([H || {_, {_, _, H, _}, _} <- Letters]).
+%max_height(Letters) ->
+    %lists:max([H || {_, {_, _, H, _}, _} <- Letters]).
 
 max_top(Letters) ->
     lists:max([T || {_, {_, _, _, T}, _} <- Letters]).
+
+max_bottom(Letters) ->
+    lists:max([H - T || {_, {_, _, H, T}, _} <- Letters]).
 
 longest_scanline(Lists) ->
     SortFun = fun(L1, L2) ->
