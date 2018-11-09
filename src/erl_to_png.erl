@@ -41,6 +41,7 @@ render(Filename, IncludePaths) ->
     io:format(user, "Scanlines0 ~p~n", [length(Scanlines0)]),
     Longest = longest_scanline(Scanlines0),
     MaxLength = length(Longest),
+    %% TODO Why are we padding here _and_ in scanlines?
     Scanlines = [pad_length(SL, MaxLength) || SL <- Scanlines0],
     Png = png(Scanlines),
     png:write_scanlines(Png, Filename ++ ".png").
@@ -70,6 +71,7 @@ render_tuples([{_, <<>>, _} | Tuples], Letters) ->
 render_tuples([{Line, <<Char:1/binary, Bin/binary>>, Colour} | Tuples], Letters) ->
     Letter = render_char:render_char(binary_to_list(Char)),
     {Render, W, H, T, BinWidth} = Letter,
+
     %io:format("Rendered ~p on line ~p with colour ~p."
               %" Bin size: ~p, "
               %"W: ~p, H: ~p, T: ~p, BW: ~p~n",
@@ -82,6 +84,9 @@ render_tuples([{Line, <<Char:1/binary, Bin/binary>>, Colour} | Tuples], Letters)
               [Char, Line, Colour, size(Render),
                size(Extract), W, H, T, BinWidth]),
     ExtractedLetter = {Extract, W, H, T},
+
+    %draw_pixmap(Extract, W, 1),
+
     render_tuples([{Line, Bin, Colour} | Tuples],
                   [{Line, ExtractedLetter, Colour} | Letters]);
 render_tuples([{Line, <<Char:1/binary>>, Colour} | Tuples], Letters) ->
@@ -104,6 +109,19 @@ render_tuples([{Line, <<Char:1/binary>>, Colour} | Tuples], Letters) ->
 render_tuples([BadTuple = {_, Bin, _} | Tuples], Letters) ->
     io:format("Skipping bad tuple: ~p with bin size ~p~n", [BadTuple, size(Bin)]),
     render_tuples(Tuples, Letters).
+
+%draw_pixmap(<<>>, _, _) ->
+%    ok;
+%draw_pixmap(<<Char/integer, Rest/binary>>, W, Count) ->
+%    io:format("~2.. B", [floor(Char / 2.6)]),
+%    case Count of
+%        X when X rem W == 0 ->
+%            io:format("~n");
+%        _ ->
+%            ok
+%    end,
+%    draw_pixmap(Rest, W, Count + 1).
+
 
 extract_letter(Bin, LetterW, LetterH, BinW) ->
     extract_letter(Bin, LetterW, LetterH, BinW, <<>>, 0).
@@ -183,6 +201,7 @@ letters_to_scanlines([Letter | Letters], MaxT, MaxB, Scanlines) ->
     {_, {Bin, W, H, T}, Colour} = Letter,
     Scanlines0 = letter_to_scanlines(Bin, W),
     Pixels = pixels(Scanlines0, Colour),
+    draw_scanlines(Pixels),
     BlankLine = blank_pixels(W),
     TopPadding = lists:duplicate(MaxT - T, BlankLine),
     BottomPadding = lists:duplicate(MaxB - (H - T), BlankLine),
@@ -194,6 +213,21 @@ pixels(Scanlines, RGB) when is_list(Scanlines) ->
 pixels(Scanline, {R, G, B}) when is_binary(Scanline) ->
     Alphas = binary_to_list(Scanline),
     [#px{r = R, g = G, b = B, a = A} || A <- Alphas].
+
+draw_scanlines(Scanlines) ->
+    [draw_pixels(S) || S <- Scanlines].
+
+draw_pixels(Scanline) ->
+    [draw_pixel(Px) || Px <- Scanline],
+    io:format("~n").
+
+draw_pixel(Px) ->
+    R = floor(Px#px.r / 2.6),
+    G = floor(Px#px.g / 2.6),
+    B = floor(Px#px.b / 2.6),
+    A = floor(Px#px.a / 2.6),
+    io:format("~2.. B~2.. B~2.. B~2.. B",
+              [R, G, B, A]).
 
 letter_to_scanlines(Bin, W) ->
     letter_to_scanlines(Bin, W, []).
