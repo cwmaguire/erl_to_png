@@ -43,7 +43,8 @@ render(Filename, IncludePaths) ->
     MaxLength = length(Longest),
     %% TODO Why are we padding here _and_ in scanlines?
     Scanlines = [pad_length(SL, MaxLength) || SL <- Scanlines0],
-    Png = png(Scanlines),
+    io:format("Scanlines: ~p~n", [length(Scanlines)]),
+    Png = png(Scanlines, MaxLength),
     png:write_scanlines(Png, Filename ++ ".png").
 
 filter_tuples(Tuple = {_, <<>>, _}) ->
@@ -201,7 +202,7 @@ letters_to_scanlines([Letter | Letters], MaxT, MaxB, Scanlines) ->
     {_, {Bin, W, H, T}, Colour} = Letter,
     Scanlines0 = letter_to_scanlines(Bin, W),
     Pixels = pixels(Scanlines0, Colour),
-    draw_scanlines(Pixels),
+    %draw_scanlines(Pixels),
     BlankLine = blank_pixels(W),
     TopPadding = lists:duplicate(MaxT - T, BlankLine),
     BottomPadding = lists:duplicate(MaxB - (H - T), BlankLine),
@@ -214,32 +215,32 @@ pixels(Scanline, {R, G, B}) when is_binary(Scanline) ->
     Alphas = binary_to_list(Scanline),
     [#px{r = R, g = G, b = B, a = A} || A <- Alphas].
 
-draw_scanlines(Scanlines) ->
-    [draw_pixels(S) || S <- Scanlines].
+%draw_scanlines(Scanlines) ->
+%    [draw_pixels(S) || S <- Scanlines].
 
 %draw_pixels(Scanline) ->
     %[draw_pixel(Px) || Px <- Scanline],
     %io:format("~n").
 
-draw_pixels(Scanline) ->
-    [draw_pixel_rg(Px) || Px <- Scanline],
-    io:format("~n"),
-    [draw_pixel_ba(Px) || Px <- Scanline],
-    io:format("~n").
+%draw_pixels(Scanline) ->
+%    [draw_pixel_rg(Px) || Px <- Scanline],
+%    io:format("~n"),
+%    [draw_pixel_ba(Px) || Px <- Scanline],
+%    io:format("~n").
 
-draw_pixel_rg(Px) ->
-    ARatio = Px#px.a / 255,
-    R = floor(Px#px.r / 255 * 99 * ARatio),
-    G = floor(Px#px.g / 255 * 99 * ARatio),
-    io:format("~2.. B~2.. B",
-              [R, G]).
+%draw_pixel_rg(Px) ->
+%    ARatio = Px#px.a / 255,
+%    R = floor(Px#px.r / 255 * 99 * ARatio),
+%    G = floor(Px#px.g / 255 * 99 * ARatio),
+%    io:format("~2.. B~2.. B",
+%              [R, G]).
 
-draw_pixel_ba(Px) ->
-    ARatio = Px#px.a / 255,
-    B = floor(Px#px.b * 99 / 255 * ARatio),
-    A = floor(Px#px.a * 99 / 255),
-    io:format("~2.. B~2.. B",
-              [B, A]).
+%draw_pixel_ba(Px) ->
+%    ARatio = Px#px.a / 255,
+%    B = floor(Px#px.b * 99 / 255 * ARatio),
+%    A = floor(Px#px.a * 99 / 255),
+%    io:format("~2.. B~2.. B",
+%              [B, A]).
 
 letter_to_scanlines(Bin, W) ->
     letter_to_scanlines(Bin, W, []).
@@ -278,9 +279,9 @@ blank_pixels(N) ->
     BlankPixel = #px{r = 0, g = 0, b = 0, a = 255},
     lists:duplicate(N, BlankPixel).
 
-png(Scanlines) ->
-    Header = #header{width = 400,
-                     height = 40,
+png(Scanlines, W) ->
+    Header = #header{width = W,
+                     height = length(Scanlines),
                      bit_depth = 8,
                      color_type = 6,
                      compression = 0,
@@ -288,7 +289,7 @@ png(Scanlines) ->
                      interlace = 0},
     _Png = #png{header = Header,
                 background = <<255,0,0>>,
-                physical = {400, 40, 0},
+                physical = {W, length(Scanlines), 0},
                 srgb = 0, % rendering intent
                 text = [],
                 data = <<>>,
