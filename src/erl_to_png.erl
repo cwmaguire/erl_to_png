@@ -217,17 +217,29 @@ pixels(Scanline, {R, G, B}) when is_binary(Scanline) ->
 draw_scanlines(Scanlines) ->
     [draw_pixels(S) || S <- Scanlines].
 
+%draw_pixels(Scanline) ->
+    %[draw_pixel(Px) || Px <- Scanline],
+    %io:format("~n").
+
 draw_pixels(Scanline) ->
-    [draw_pixel(Px) || Px <- Scanline],
+    [draw_pixel_rg(Px) || Px <- Scanline],
+    io:format("~n"),
+    [draw_pixel_ba(Px) || Px <- Scanline],
     io:format("~n").
 
-draw_pixel(Px) ->
-    R = floor(Px#px.r / 2.6),
-    G = floor(Px#px.g / 2.6),
-    B = floor(Px#px.b / 2.6),
-    A = floor(Px#px.a / 2.6),
-    io:format("~2.. B~2.. B~2.. B~2.. B",
-              [R, G, B, A]).
+draw_pixel_rg(Px) ->
+    ARatio = Px#px.a / 255,
+    R = floor(Px#px.r / 255 * 99 * ARatio),
+    G = floor(Px#px.g / 255 * 99 * ARatio),
+    io:format("~2.. B~2.. B",
+              [R, G]).
+
+draw_pixel_ba(Px) ->
+    ARatio = Px#px.a / 255,
+    B = floor(Px#px.b * 99 / 255 * ARatio),
+    A = floor(Px#px.a * 99 / 255),
+    io:format("~2.. B~2.. B",
+              [B, A]).
 
 letter_to_scanlines(Bin, W) ->
     letter_to_scanlines(Bin, W, []).
