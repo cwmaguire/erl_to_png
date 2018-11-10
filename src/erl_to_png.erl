@@ -2,13 +2,13 @@
 
 -include("png.hrl").
 
--export([render/1]).
 -export([render/2]).
+-export([render/3]).
 
 % Test exports
 -export([filter_tuples/1]).
--export([render_tuples/1]).
 -export([render_tuples/2]).
+-export([render_tuples/3]).
 -export([lines/1]).
 -export([lines/2]).
 -export([scanlines/3]).
@@ -23,13 +23,14 @@
 -export([lines_to_scanlines/3]).
 -export([pixels/2]).
 
-render(Filename) ->
-    render(Filename, []).
+-spec render(list, {list, integer}) -> ok.
+render(Filename, Font) ->
+    render(Filename, Font, []).
 
-render(Filename, IncludePaths) ->
+render(Filename, Font, IncludePaths) ->
     Tuples0 = erl_to_tuples:get_tuples(Filename, IncludePaths),
     Tuples = lists:filter(fun filter_tuples/1, Tuples0),
-    Letters = render_tuples(Tuples),
+    Letters = render_tuples(Font, Tuples),
     %MaxHeight = max_height(Letters),
     MaxTop = max_top(Letters),
     io:format(user, "MaxTop = ~p~n", [MaxTop]),
@@ -62,15 +63,20 @@ filter_tuples({_, NotBin, _}) when not(is_binary(NotBin)) ->
 filter_tuples(_) ->
     true.
 
-render_tuples(Tuples) ->
-    render_tuples(Tuples, []).
+render_tuples(Font, Tuples) ->
+    render_tuples(Font, Tuples, []).
 
-render_tuples([], Letters) ->
+render_tuples(_, [], Letters) ->
     lists:reverse(Letters);
-render_tuples([{_, <<>>, _} | Tuples], Letters) ->
-    render_tuples(Tuples, Letters);
-render_tuples([{Line, <<Char:1/binary, Bin/binary>>, Colour} | Tuples], Letters) ->
-    Letter = render_char:render_char(binary_to_list(Char)),
+render_tuples(Font, [{_, <<>>, _} | Tuples], Letters) ->
+    render_tuples(Font, Tuples, Letters);
+render_tuples({FontPath, FontSize},
+              [{Line, <<Char:1/binary, Bin/binary>>, Colour} | Tuples],
+              Letters) ->
+    Letter = render_char:render_char(binary_to_list(Char),
+                                     length(FontPath),
+                                     FontPath,
+                                     FontSize),
     {Render, W, H, T, BinWidth} = Letter,
 
     %io:format("Rendered ~p on line ~p with colour ~p."
@@ -88,10 +94,16 @@ render_tuples([{Line, <<Char:1/binary, Bin/binary>>, Colour} | Tuples], Letters)
 
     %draw_pixmap(Extract, W, 1),
 
-    render_tuples([{Line, Bin, Colour} | Tuples],
+    render_tuples({FontPath, FontSize},
+                  [{Line, Bin, Colour} | Tuples],
                   [{Line, ExtractedLetter, Colour} | Letters]);
-render_tuples([{Line, <<Char:1/binary>>, Colour} | Tuples], Letters) ->
-    Letter = render_char:render_char(binary_to_list(Char)),
+render_tuples({FontPath, FontSize},
+              [{Line, <<Char:1/binary>>, Colour} | Tuples],
+              Letters) ->
+    Letter = render_char:render_char(binary_to_list(Char),
+                                     length(FontPath),
+                                     FontPath,
+                                     FontSize),
     {Render, W, H, T, BinWidth} = Letter,
     %io:format("Rendered ~p on line ~p with colour ~p."
               %" Bin size: ~p, "
@@ -105,11 +117,12 @@ render_tuples([{Line, <<Char:1/binary>>, Colour} | Tuples], Letters) ->
               [Char, Line, Colour, size(Render),
                size(Extract), W, H, T, BinWidth]),
     ExtractedLetter = {Extract, W, H, T},
-    render_tuples(Tuples,
+    render_tuples({FontPath, FontSize},
+                  Tuples,
                   [{Line, ExtractedLetter, Colour} | Letters]);
-render_tuples([BadTuple = {_, Bin, _} | Tuples], Letters) ->
+render_tuples(Font, [BadTuple = {_, Bin, _} | Tuples], Letters) ->
     io:format("Skipping bad tuple: ~p with bin size ~p~n", [BadTuple, size(Bin)]),
-    render_tuples(Tuples, Letters).
+    render_tuples(Font, Tuples, Letters).
 
 %draw_pixmap(<<>>, _, _) ->
 %    ok;

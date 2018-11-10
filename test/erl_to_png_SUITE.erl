@@ -51,21 +51,25 @@ test_filter_tuples(_Config) ->
                                              undefined}]).
 
 test_render_tuples(_Config) ->
-    [] = ?E2P:render_tuples([{undefined, <<>>, undefined}]),
+    FontPath = "/System/Library/Fonts/Menlo.ttc",
+    FontSize = 12,
+    Font = {FontPath, FontSize},
+    [] = ?E2P:render_tuples(Font, [{undefined, <<>>, undefined}]),
     [{1, R1 = {Bin1, W, H, Top}, colour_1}] =
-        ?E2P:render_tuples([{1, <<"a">>, colour_1}]),
+        ?E2P:render_tuples(Font, [{1, <<"a">>, colour_1}]),
     true = is_binary(Bin1),
     true = is_integer(W),
     true = is_integer(H),
     true = is_integer(Top),
-    [T1, T2] = ?E2P:render_tuples([{1, <<"a">>, colour_1},
-                                         {2, <<"b">>, colour_2}]),
+    [T1, T2] = ?E2P:render_tuples(Font,
+                                  [{1, <<"a">>, colour_1},
+                                   {2, <<"b">>, colour_2}]),
     {1, R1, colour_1} = T1,
     {2, {Bin2, W2, H2, Top2}, colour_2} = T2,
     true = is_binary(Bin2),
     true = Bin1 /= Bin2,
-    true = 100 < size(Bin1),
-    true = 100 < size(Bin2),
+    true = 50 < size(Bin1),
+    true = 50 < size(Bin2),
     true = is_integer(W2),
     true = is_integer(H2),
     true = is_integer(Top2).
