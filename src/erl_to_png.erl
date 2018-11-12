@@ -6,15 +6,16 @@
 -export([render/3]).
 
 % Test exports
--export([filter_tuples/1]).
+-export([is_valid_tuple/1]).
 -export([render_tuples/2]).
 -export([render_tuples/3]).
 -export([lines/1]).
 -export([lines/2]).
 -export([scanlines/3]).
 -export([pad_length/2]).
-%-export([max_height/1]).
 -export([max_top/1]).
+-export([max_bottom/1]).
+-export([max_width/1]).
 -export([longest_scanline/1]).
 -export([combine_scanlines/1]).
 -export([blank_pixels/1]).
@@ -22,6 +23,8 @@
 -export([letters_to_scanlines/3]).
 -export([lines_to_scanlines/3]).
 -export([pixels/2]).
+-export([monospace_letter/2]).
+-export([monospace_letter/5]).
 
 -spec render(list, {list, integer}) -> ok.
 render(Filename, Font) ->
@@ -29,14 +32,17 @@ render(Filename, Font) ->
 
 render(Filename, Font, IncludePaths) ->
     Tuples0 = erl_to_tuples:get_tuples(Filename, IncludePaths),
-    Tuples = lists:filter(fun filter_tuples/1, Tuples0),
+    Tuples = lists:filter(fun is_valid_tuple/1, Tuples0),
     Letters = render_tuples(Font, Tuples),
     %MaxHeight = max_height(Letters),
     MaxTop = max_top(Letters),
     io:format(user, "MaxTop = ~p~n", [MaxTop]),
     MaxBottom = max_bottom(Letters),
     io:format(user, "MaxBottom = ~p~n", [MaxBottom]),
-    Lines = lines(Letters),
+    MaxWidth = max_width(Letters),
+    io:format(user, "MaxWidth = ~p~n", [MaxWidth]),
+    MonospacedLetters = [monospace_letter(L, MaxWidth) || L <- Letters],
+    Lines = lines(MonospacedLetters),
     io:format(user, "Lines ~p~n", [length(Lines)]),
     Scanlines0  = scanlines(Lines, MaxTop, MaxBottom),
     io:format(user, "Scanlines0 ~p~n", [length(Scanlines0)]),
@@ -48,19 +54,19 @@ render(Filename, Font, IncludePaths) ->
     Png = png(Scanlines, MaxLength),
     png:write_scanlines(Png, Filename ++ ".png").
 
-filter_tuples(Tuple = {_, <<>>, _}) ->
+is_valid_tuple(Tuple = {_, <<>>, _}) ->
     io:format("Filter out tuple with empty bin: ~p~n", [Tuple]),
     false;
-filter_tuples(Tuple = {_, Bin, _}) when is_binary(Bin) and size(Bin) == 0 ->
+is_valid_tuple(Tuple = {_, Bin, _}) when is_binary(Bin) and size(Bin) == 0 ->
     io:format("Filter out tuple with size zero bin: ~p~n", [Tuple]),
     false;
-filter_tuples(NotTuple) when not(is_tuple(NotTuple)) ->
+is_valid_tuple(NotTuple) when not(is_tuple(NotTuple)) ->
     io:format("Filter out non-tuple: ~p~n", [NotTuple]),
     false;
-filter_tuples({_, NotBin, _}) when not(is_binary(NotBin)) ->
+is_valid_tuple({_, NotBin, _}) when not(is_binary(NotBin)) ->
     io:format("Filter out non-binary: ~p~n", [NotBin]),
     false;
-filter_tuples(_) ->
+is_valid_tuple(_) ->
     true.
 
 render_tuples(Font, Tuples) ->
@@ -70,56 +76,21 @@ render_tuples(_, [], Letters) ->
     lists:reverse(Letters);
 render_tuples(Font, [{_, <<>>, _} | Tuples], Letters) ->
     render_tuples(Font, Tuples, Letters);
-render_tuples({FontPath, FontSize},
+render_tuples(Font,
               [{Line, <<Char:1/binary, Bin/binary>>, Colour} | Tuples],
               Letters) ->
-    Letter = render_char:render_char(binary_to_list(Char),
-                                     length(FontPath),
-                                     FontPath,
-                                     FontSize),
-    {Render, W, H, T, BinWidth} = Letter,
+    Letter = render_letter(Char, Font),
 
-    %io:format("Rendered ~p on line ~p with colour ~p."
-              %" Bin size: ~p, "
-              %"W: ~p, H: ~p, T: ~p, BW: ~p~n",
-              %[Char, Line, Colour, size(Render),
-               %W, H, T, BinWidth]),
-    Extract = extract_letter(Render, W, H, BinWidth),
-    io:format("Rendered ~p on line ~p with colour ~p."
-              " Bin size: ~p, Letter size: ~p, "
-              "W: ~p, H: ~p, T: ~p, BW: ~p~n",
-              [Char, Line, Colour, size(Render),
-               size(Extract), W, H, T, BinWidth]),
-    ExtractedLetter = {Extract, W, H, T},
-
-    %draw_pixmap(Extract, W, 1),
-
-    render_tuples({FontPath, FontSize},
+    render_tuples(Font,
                   [{Line, Bin, Colour} | Tuples],
-                  [{Line, ExtractedLetter, Colour} | Letters]);
-render_tuples({FontPath, FontSize},
+                  [{Line, Letter, Colour} | Letters]);
+render_tuples(Font,
               [{Line, <<Char:1/binary>>, Colour} | Tuples],
               Letters) ->
-    Letter = render_char:render_char(binary_to_list(Char),
-                                     length(FontPath),
-                                     FontPath,
-                                     FontSize),
-    {Render, W, H, T, BinWidth} = Letter,
-    %io:format("Rendered ~p on line ~p with colour ~p."
-              %" Bin size: ~p, "
-              %"W: ~p, H: ~p, T: ~p, BW: ~p~n",
-              %[Char, Line, Colour, size(Render),
-               %W, H, T, BinWidth]),
-    Extract = extract_letter(Render, W, H, BinWidth),
-    io:format("Rendered ~p on line ~p with colour ~p."
-              " Bin size: ~p, Letter size: ~p, "
-              "W: ~p, H: ~p, T: ~p, BW: ~p~n",
-              [Char, Line, Colour, size(Render),
-               size(Extract), W, H, T, BinWidth]),
-    ExtractedLetter = {Extract, W, H, T},
-    render_tuples({FontPath, FontSize},
+    Letter = render_letter(Char, Font),
+    render_tuples(Font,
                   Tuples,
-                  [{Line, ExtractedLetter, Colour} | Letters]);
+                  [{Line, Letter, Colour} | Letters]);
 render_tuples(Font, [BadTuple = {_, Bin, _} | Tuples], Letters) ->
     io:format("Skipping bad tuple: ~p with bin size ~p~n", [BadTuple, size(Bin)]),
     render_tuples(Font, Tuples, Letters).
@@ -136,6 +107,24 @@ render_tuples(Font, [BadTuple = {_, Bin, _} | Tuples], Letters) ->
 %    end,
 %    draw_pixmap(Rest, W, Count + 1).
 
+render_letter(Char, {FontPath, FontSize}) ->
+    Letter = render_char:render_char(binary_to_list(Char),
+                                     length(FontPath),
+                                     FontPath,
+                                     FontSize),
+    {Render, W, H, T, BinWidth} = Letter,
+    %io:format("Rendered ~p on line ~p with colour ~p."
+              %" Bin size: ~p, "
+              %"W: ~p, H: ~p, T: ~p, BW: ~p~n",
+              %[Char, Line, Colour, size(Render),
+               %W, H, T, BinWidth]),
+    Extract = extract_letter(Render, W, H, BinWidth),
+    %io:format("Rendered ~p on line ~p with colour ~p."
+              %" Bin size: ~p, Letter size: ~p, "
+              %"W: ~p, H: ~p, T: ~p, BW: ~p~n",
+              %[Char, Line, Colour, size(Render),
+               %size(Extract), W, H, T, BinWidth]),
+    {Extract, W, H, T}.
 
 extract_letter(Bin, LetterW, LetterH, BinW) ->
     extract_letter(Bin, LetterW, LetterH, BinW, <<>>, 0).
@@ -155,6 +144,25 @@ extract_letter(Bin, LetterW, LetterH, BinW, ExtractBin, Count) ->
                    <<ExtractBin/binary, LetterLine/binary>>,
                    Count + 1).
 
+monospace_letter({Line, Letter, Colour}, MaxW) ->
+    Monospaced = monospace_letter(Letter, MaxW),
+    {Line, Monospaced, Colour};
+monospace_letter({Bin, W, H, T}, MaxW) ->
+    Pad = MaxW - W,
+    PadR = Pad div 2,
+    PadL = Pad - PadR,
+    BinPadR = <<0:(8 * PadR)>>,
+    BinPadL = <<0:(8 * PadL)>>,
+    MonospacedLetter = monospace_letter(Bin, W, BinPadL, BinPadR, <<>>),
+    {MonospacedLetter, MaxW, H, T}.
+
+monospace_letter(<<>>, _, _, _, PaddedLetter) ->
+    PaddedLetter;
+monospace_letter(Bin, W, PadL, PadR, PaddedLetter) ->
+    <<Line:W/binary, Rest/binary>> = Bin,
+    Padded = <<PaddedLetter/binary, PadL/binary, Line/binary, PadR/binary>>,
+    monospace_letter(Rest, W, PadL, PadR, Padded).
+
 lines([]) ->
     [];
 lines([{noline, X, Y} | Letters]) ->
@@ -172,6 +180,9 @@ lines([Letter = {LineNo, _, _} | Letters],
          is_integer(HigherLineNo),
          LineNo > HigherLineNo ->
     lines(Letters, [[Letter] | Lines]);
+% FIXME include files get included in the source and
+%       have their own line numbers, then the main file
+%       restarts at 0
 % Replace the out-of-place line number with the current
 % line number since it isn't an int and greater than the
 % current line number
@@ -317,6 +328,9 @@ max_top(Letters) ->
 
 max_bottom(Letters) ->
     lists:max([H - T || {_, {_, _, H, T}, _} <- Letters]).
+
+max_width(Letters) ->
+    lists:max([W || {_, {_, W, _, _}, _} <- Letters]).
 
 longest_scanline(Lists) ->
     SortFun = fun(L1, L2) ->
